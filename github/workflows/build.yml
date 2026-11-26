@@ -1,0 +1,451 @@
+name: Build Carrom APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create project files
+        run: |
+          mkdir -p proj/.
+          cat > proj/settings.gradle <<'CARROM_EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "Carrom"
+          include ':app'
+          CARROM_EOF
+          mkdir -p proj/.
+          cat > proj/build.gradle <<'CARROM_EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          CARROM_EOF
+          mkdir -p proj/.
+          cat > proj/gradle.properties <<'CARROM_EOF'
+          org.gradle.jvmargs=-Xmx2048m
+          android.nonTransitiveRClass=true
+          CARROM_EOF
+          mkdir -p proj/app
+          cat > proj/app/build.gradle <<'CARROM_EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.carrom'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.carrom"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release { minifyEnabled false }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+          CARROM_EOF
+          mkdir -p proj/app/src/main
+          cat > proj/app/src/main/AndroidManifest.xml <<'CARROM_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="Carrom"
+                  android:allowBackup="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          CARROM_EOF
+          mkdir -p proj/app/src/main/java/com/example/carrom
+          cat > proj/app/src/main/java/com/example/carrom/MainActivity.java <<'CARROM_EOF'
+          package com.example.carrom;
+
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+
+          public class MainActivity extends Activity {
+              private WebView web;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  web = new WebView(this);
+                  web.setBackgroundColor(Color.parseColor("#241a12"));
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setAllowFileAccess(true);
+                  web.loadUrl("file:///android_asset/index.html");
+                  setContentView(web);
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) {
+                      getWindow().getDecorView().setSystemUiVisibility(
+                          View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                          | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                          | View.SYSTEM_UI_FLAG_FULLSCREEN
+                          | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                  }
+              }
+
+              @Override
+              protected void onPause() { super.onPause(); web.onPause(); }
+
+              @Override
+              protected void onResume() { super.onResume(); web.onResume(); }
+          }
+          CARROM_EOF
+          mkdir -p proj/app/src/main/assets
+          cat > proj/app/src/main/assets/index.html <<'CARROM_EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Carrom</title>
+          <style>
+            *{box-sizing:border-box}
+            body{margin:0;background:#241a12;color:#f3e9d8;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;justify-content:center}
+            #app{width:100%;max-width:560px;padding:12px;display:flex;flex-direction:column;gap:10px}
+            h1{font-size:20px;margin:0}
+            .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+            button{background:#c98a3d;color:#241a12;border:0;border-radius:8px;padding:8px 12px;font-weight:600;font-size:14px;cursor:pointer}
+            button.alt{background:#4a3726;color:#f3e9d8}
+            .btns{display:flex;gap:6px}
+            .score{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+            .card{background:#3a2a1c;border:2px solid transparent;border-radius:10px;padding:8px 10px;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+            .card.on{border-color:#e9b86a}
+            .dot{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:6px;vertical-align:-2px}
+            #msg{min-height:38px;font-size:14px;line-height:1.35;color:#f6d9a3}
+            .boardwrap{border:14px solid #5a3a1e;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.5);background:#5a3a1e;line-height:0}
+            canvas{width:100%;aspect-ratio:1;touch-action:none;display:block;cursor:crosshair}
+            .ctl{display:flex;flex-direction:column;gap:6px;font-size:13px}
+            input[type=range]{width:100%;accent-color:#c98a3d}
+            .pow{height:8px;border-radius:4px;background:#3a2a1c;overflow:hidden}
+            #powbar{height:100%;width:0;background:linear-gradient(90deg,#8bc34a,#ffc107,#e53935)}
+            .hint{font-size:12px;color:#bfae93}
+          </style>
+          </head>
+          <body>
+          <div id="app">
+            <div class="top">
+              <h1>Carrom</h1>
+              <div class="btns">
+                <button class="alt" id="mode">vs Computer</button>
+                <button id="newg">New game</button>
+              </div>
+            </div>
+            <div class="score">
+              <div class="card" id="c0"><span><span class="dot" style="background:#f4ecd8"></span><span id="n0">White</span></span><b id="s0">0/9</b></div>
+              <div class="card" id="c1"><span><span class="dot" style="background:#2a2420;border:1px solid #888"></span><span id="n1">Black</span></span><b id="s1">0/9</b></div>
+            </div>
+            <div id="msg"></div>
+            <div class="boardwrap"><canvas id="cv"></canvas></div>
+            <div class="ctl">
+              <label>Slide striker along your baseline
+                <input type="range" id="sl" min="118" max="482" value="300">
+              </label>
+              <div class="pow"><div id="powbar"></div></div>
+              <div class="hint">Drag backwards anywhere on the board (like a slingshot) and release to shoot. Pocket your own colour to keep your turn. Pocket the red queen, then cover it with one of your own. Striker in a pocket is a foul. First to clear all 9 pieces wins.</div>
+            </div>
+          </div>
+          <script>
+          const S=600,R=13,SR=17,PK=24;
+          const POCKETS=[[8,8],[592,8],[8,592],[592,592]];
+          const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+          const sl=document.getElementById('sl'),msgEl=document.getElementById('msg'),pb=document.getElementById('powbar');
+          let dpr=Math.min(2,window.devicePixelRatio||1);cv.width=cv.height=S*dpr;
+
+          let bodies,striker,queen,state,cur,counts,qState,qOwner,vsAI=true,blocked=false,drag=null,shotPocketed=[],aiTimer=null,winner=-1;
+
+          function mk(x,y,type){return{x,y,vx:0,vy:0,r:type==='s'?SR:R,m:type==='s'?2.2:1,type,alive:true};}
+          function setup(){
+            clearTimeout(aiTimer);
+            bodies=[];queen=mk(300,300,'q');bodies.push(queen);
+            for(let i=0;i<6;i++){const a=i*Math.PI/3;bodies.push(mk(300+Math.cos(a)*27,300+Math.sin(a)*27,i%2?'b':'w'));}
+            for(let i=0;i<12;i++){const a=i*Math.PI/6+Math.PI/12;bodies.push(mk(300+Math.cos(a)*54,300+Math.sin(a)*54,i%2?'b':'w'));}
+            striker=mk(300,510,'s');bodies.push(striker);
+            cur=0;counts=[0,0];qState='board';qOwner=-1;winner=-1;
+            startTurn('White to shoot.');
+          }
+          function sy(){return cur===0?510:90;}
+          function placeStriker(x){
+            striker.x=x;striker.y=sy();striker.vx=striker.vy=0;striker.alive=true;
+            blocked=bodies.some(b=>b!==striker&&b.alive&&Math.hypot(b.x-striker.x,b.y-striker.y)<b.r+SR+1);
+          }
+          function isAI(){return vsAI&&cur===1;}
+          function startTurn(m){
+            state='aim';sl.value=300;placeStriker(300);
+            setMsg(m||'');hud();
+            sl.disabled=isAI();
+            if(isAI()){aiTimer=setTimeout(aiMove,800);}
+          }
+          function setMsg(t){msgEl.textContent=t;}
+          function name(i){return i===0?'White':'Black';}
+          function hud(){
+            document.getElementById('s0').textContent=counts[0]+'/9'+(qState==='owned'&&qOwner===0?' 👑':'');
+            document.getElementById('s1').textContent=counts[1]+'/9'+(qState==='owned'&&qOwner===1?' 👑':'');
+            document.getElementById('n0').textContent=vsAI?'White (You)':'White';
+            document.getElementById('n1').textContent=vsAI?'Black (CPU)':'Black';
+            document.getElementById('c0').classList.toggle('on',state!=='over'&&cur===0);
+            document.getElementById('c1').classList.toggle('on',state!=='over'&&cur===1);
+          }
+          function shoot(dx,dy,speed){
+            striker.vx=dx*speed;striker.vy=dy*speed;state='moving';shotPocketed=[];sl.disabled=true;pb.style.width='0';
+          }
+          function free(x,y,r){return !bodies.some(b=>b.alive&&Math.hypot(b.x-x,b.y-y)<b.r+r+1);}
+          function respawn(type){
+            let b=bodies.find(o=>o.type===type&&!o.alive);
+            if(!b){b=mk(300,300,type);bodies.push(b);}
+            let placed=false;
+            for(let k=0;k<200&&!placed;k++){
+              const a=k*2.4,rad=k===0?0:6+k*1.6;
+              const x=300+Math.cos(a)*rad,y=300+Math.sin(a)*rad;
+              if(free(x,y,R)){b.x=x;b.y=y;placed=true;}
+            }
+            b.vx=b.vy=0;b.alive=true;
+          }
+          function step(dt){
+            for(const b of bodies){
+              if(!b.alive)continue;
+              b.x+=b.vx*dt;b.y+=b.vy*dt;
+              let sp=Math.hypot(b.vx,b.vy);
+              if(sp>0){
+                const ns=Math.max(0,sp*Math.exp(-1.1*dt)-35*dt);
+                if(ns<6){b.vx=b.vy=0;}else{b.vx*=ns/sp;b.vy*=ns/sp;}
+              }
+              if(b.x<b.r){b.x=b.r;b.vx=Math.abs(b.vx)*0.8;}
+              if(b.x>S-b.r){b.x=S-b.r;b.vx=-Math.abs(b.vx)*0.8;}
+              if(b.y<b.r){b.y=b.r;b.vy=Math.abs(b.vy)*0.8;}
+              if(b.y>S-b.r){b.y=S-b.r;b.vy=-Math.abs(b.vy)*0.8;}
+              for(const [px,py] of POCKETS){
+                if(Math.hypot(b.x-px,b.y-py)<PK){b.alive=false;b.vx=b.vy=0;shotPocketed.push(b.type);break;}
+              }
+            }
+            for(let it=0;it<2;it++){
+              for(let i=0;i<bodies.length;i++){
+                const a=bodies[i];if(!a.alive)continue;
+                for(let j=i+1;j<bodies.length;j++){
+                  const b=bodies[j];if(!b.alive)continue;
+                  const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),min=a.r+b.r;
+                  if(d<min&&d>0.0001){
+                    const nx=dx/d,ny=dy/d,ov=min-d,tm=a.m+b.m;
+                    a.x-=nx*ov*b.m/tm;a.y-=ny*ov*b.m/tm;b.x+=nx*ov*a.m/tm;b.y+=ny*ov*a.m/tm;
+                    const vn=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+                    if(vn<0){
+                      const j2=-(1.92)*vn/(1/a.m+1/b.m);
+                      a.vx-=j2*nx/a.m;a.vy-=j2*ny/a.m;b.vx+=j2*nx/b.m;b.vy+=j2*ny/b.m;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          function allStopped(){return bodies.every(b=>!b.alive||(b.vx===0&&b.vy===0));}
+          function endShot(){
+            const me=cur===0?'w':'b',opp=me==='w'?'b':'w';
+            const t=shotPocketed;
+            const foul=t.includes('s'),q=t.includes('q');
+            const own=t.filter(x=>x===me).length,opn=t.filter(x=>x===opp).length;
+            counts[cur]+=own;counts[1-cur]+=opn;
+            const notes=[];let keep=false;
+            if(foul)notes.push('Foul! Striker pocketed.');
+            if(q){
+              if(foul){respawn('q');notes.push('Queen returned to centre.');}
+              else if(own>0){qState='owned';qOwner=cur;notes.push('Queen pocketed and covered!');}
+              else{qState='pending';qOwner=cur;keep=true;notes.push('Queen pocketed. Cover it with your own piece now.');}
+            }else if(qState==='pending'&&qOwner===cur){
+              if(!foul&&own>0){qState='owned';notes.push('Queen covered!');}
+              else{qState='board';qOwner=-1;respawn('q');notes.push('Queen not covered, returned to centre.');}
+            }
+            if(opn>0)notes.push(opn+' of '+name(1-cur)+"'s pieces went in for them.");
+            if(own>0&&!q&&!foul&&notes.length===0)notes.push('Pocketed! Shoot again.');
+            if(foul&&counts[cur]>0){counts[cur]--;respawn(me);notes.push('One of your pieces goes back.');}
+            if(!foul&&own>0)keep=true;
+            if(counts[0]>=9||counts[1]>=9){
+              winner=counts[0]>=9?0:1;state='over';sl.disabled=true;
+              setMsg(name(winner)+' wins! '+(vsAI?(winner===0?'Nice shooting.':'The computer got you this time.'):'')+' Tap New game to play again.');
+              hud();return;
+            }
+            if(!keep)cur=1-cur;
+            if(t.length===0&&!foul)notes.push('Nothing pocketed.');
+            startTurn(notes.join(' ')+' '+name(cur)+(keep?' shoots again.':' to shoot.'));
+          }
+          /* ---------- AI ---------- */
+          function segDist(px,py,x1,y1,x2,y2){
+            const dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy;
+            let t=l2?((px-x1)*dx+(py-y1)*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+            return Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+          }
+          function clear(x1,y1,x2,y2,rad,ign){
+            return !bodies.some(o=>o.alive&&o!==striker&&o!==ign&&segDist(o.x,o.y,x1,y1,x2,y2)<rad+R-1);
+          }
+          function aiMove(){
+            if(state!=='aim'||!isAI())return;
+            const mine=bodies.filter(b=>b.alive&&b.type==='b');
+            let best=null;
+            for(let x=118;x<=482;x+=16){
+              const ys=90;
+              if(bodies.some(b=>b!==striker&&b.alive&&Math.hypot(b.x-x,b.y-ys)<b.r+SR+2))continue;
+              for(const p of mine)for(const [px,py] of POCKETS){
+                const tx=px-p.x,ty=py-p.y,td=Math.hypot(tx,ty),ux=tx/td,uy=ty/td;
+                const gx=p.x-ux*(R+SR),gy=p.y-uy*(R+SR);
+                const ax=gx-x,ay=gy-ys,ad=Math.hypot(ax,ay);if(ad<1)continue;
+                const cos=(ax*ux+ay*uy)/ad;if(cos<0.45)continue;
+                if(!clear(x,ys,gx,gy,SR,p)||!clear(p.x,p.y,px,py,R,p))continue;
+                const score=cos*100-(ad+td)*0.08+Math.random()*6;
+                if(!best||score>best.score)best={score,x,dx:ax/ad,dy:ay/ad,D:ad+td};
+              }
+            }
+            if(!best){
+              let tgt=mine[0];if(!tgt)return;
+              let bx=300,bd=1e9;
+              for(const p of mine){const d=Math.hypot(p.x-300,p.y-90);if(d<bd){bd=d;tgt=p;}}
+              for(let x=118;x<=482;x+=16){
+                if(bodies.some(b=>b!==striker&&b.alive&&Math.hypot(b.x-x,90-b.y)<b.r+SR+2))continue;
+                bx=x;break;
+              }
+              const ax=tgt.x-bx,ay=tgt.y-90,ad=Math.hypot(ax,ay);
+              best={x:bx,dx:ax/ad,dy:ay/ad,D:ad+250};
+            }
+            sl.value=best.x;placeStriker(best.x);
+            aiTimer=setTimeout(()=>{
+              if(state!=='aim')return;
+              const a=Math.atan2(best.dy,best.dx)+(Math.random()-.5)*0.05;
+              const sp=Math.max(450,Math.min(1400,300+best.D*1.7));
+              shoot(Math.cos(a),Math.sin(a),sp);
+            },700);
+          }
+          /* ---------- input ---------- */
+          function pt(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*S/r.width,y:(e.clientY-r.top)*S/r.height};}
+          cv.addEventListener('pointerdown',e=>{
+            if(state!=='aim'||isAI())return;
+            const p=pt(e);drag={sx:p.x,sy:p.y,cx:p.x,cy:p.y};cv.setPointerCapture(e.pointerId);
+          });
+          cv.addEventListener('pointermove',e=>{
+            if(!drag)return;const p=pt(e);drag.cx=p.x;drag.cy=p.y;
+            pb.style.width=Math.round(aimVec().pow*100)+'%';
+          });
+          function aimVec(){
+            const dx=drag.sx-drag.cx,dy=drag.sy-drag.cy,l=Math.hypot(dx,dy);
+            return{dx:l?dx/l:0,dy:l?dy/l:0,len:l,pow:Math.min(l,160)/160};
+          }
+          cv.addEventListener('pointerup',()=>{
+            if(!drag)return;const v=aimVec();drag=null;pb.style.width='0';
+            if(state!=='aim')return;
+            if(v.len<14)return;
+            if(blocked){setMsg('Striker overlaps a piece. Slide it to a clear spot.');return;}
+            shoot(v.dx,v.dy,200+v.pow*1200);
+          });
+          cv.addEventListener('pointercancel',()=>{drag=null;pb.style.width='0';});
+          sl.addEventListener('input',()=>{if(state==='aim'&&!isAI())placeStriker(+sl.value);});
+          document.getElementById('newg').onclick=setup;
+          document.getElementById('mode').onclick=function(){vsAI=!vsAI;this.textContent=vsAI?'vs Computer':'2 Players';setup();};
+
+          /* ---------- render ---------- */
+          const COL={w:['#f6efdc','#b9a77f'],b:['#2b2420','#0d0a08'],q:['#d33a2c','#8d1d14'],s:['#f1e3b0','#3b6ea5']};
+          function line(x1,y1,x2,y2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+          function circ(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);}
+          function drawBoard(){
+            const g=ctx.createRadialGradient(300,300,40,300,300,430);
+            g.addColorStop(0,'#f1d9a2');g.addColorStop(1,'#dcb774');
+            ctx.fillStyle=g;ctx.fillRect(0,0,S,S);
+            ctx.strokeStyle='#7a4b22';ctx.lineWidth=2;
+            circ(300,300,62);ctx.stroke();circ(300,300,15);ctx.stroke();
+            for(let i=0;i<8;i++){const a=i*Math.PI/4;line(300+Math.cos(a)*15,300+Math.sin(a)*15,300+Math.cos(a)*62,300+Math.sin(a)*62);}
+            for(const y of [90,510]){
+              line(100,y-18,500,y-18);line(100,y+18,500,y+18);
+              for(const x of [100,500]){circ(x,y,18);ctx.fillStyle='#c0503a';ctx.fill();ctx.stroke();}
+            }
+            for(const x of [90,510]){line(x-18,100,x-18,500);line(x+18,100,x+18,500);}
+            ctx.globalAlpha=.6;
+            line(40,40,120,120);line(560,40,480,120);line(40,560,120,480);line(560,560,480,480);
+            ctx.globalAlpha=1;
+            for(const [px,py] of POCKETS){
+              const pg=ctx.createRadialGradient(px,py,4,px,py,30);
+              pg.addColorStop(0,'#000');pg.addColorStop(.8,'#1a1109');pg.addColorStop(1,'#2a1a0c');
+              ctx.fillStyle=pg;circ(px,py,30);ctx.fill();
+            }
+          }
+          function drawBody(b){
+            const [f,s]=COL[b.type];
+            ctx.save();ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=4;ctx.shadowOffsetY=2;
+            ctx.fillStyle=f;circ(b.x,b.y,b.r);ctx.fill();ctx.restore();
+            ctx.strokeStyle=s;ctx.lineWidth=2;circ(b.x,b.y,b.r-1);ctx.stroke();
+            ctx.lineWidth=1.2;circ(b.x,b.y,b.r*0.55);ctx.stroke();
+          }
+          function draw(){
+            ctx.setTransform(dpr,0,0,dpr,0,0);
+            drawBoard();
+            for(const b of bodies)if(b.alive&&b!==striker)drawBody(b);
+            if(striker.alive){
+              drawBody(striker);
+              if(blocked&&state==='aim'){ctx.strokeStyle='#e53935';ctx.lineWidth=3;circ(striker.x,striker.y,SR+4);ctx.stroke();}
+            }
+            if(drag&&state==='aim'){
+              const v=aimVec();
+              if(v.len>=14){
+                const L=50+v.pow*260;
+                ctx.save();ctx.setLineDash([7,7]);ctx.strokeStyle='rgba(40,25,10,.8)';ctx.lineWidth=2.5;
+                line(striker.x,striker.y,striker.x+v.dx*L,striker.y+v.dy*L);ctx.restore();
+                ctx.fillStyle='rgba(40,25,10,.85)';circ(striker.x+v.dx*L,striker.y+v.dy*L,5);ctx.fill();
+              }
+            }
+          }
+          let last=performance.now(),acc=0;
+          function loop(now){
+            acc+=Math.min(0.05,(now-last)/1000);last=now;
+            const h=1/180;
+            while(acc>=h){
+              if(state==='moving'){step(h);if(allStopped()){acc=0;endShot();break;}}
+              acc-=h;
+            }
+            draw();requestAnimationFrame(loop);
+          }
+          setup();requestAnimationFrame(loop);
+          </script>
+          </body>
+          </html>
+          CARROM_EOF
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build APK
+        working-directory: proj
+        run: gradle assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carrom-apk
+          path: proj/app/build/outputs/apk/debug/app-debug.apk
